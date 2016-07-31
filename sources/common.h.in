@@ -1,0 +1,11 @@
+#ifdef _MSC_VER
+#pragma once
+#endif
+
+#ifndef _COMMON_H_
+#define _COMMON_H_
+
+static const char* DATA_DIRECTORY = "@CMAKE_SOURCE_DIR@/data/";
+static const char* SHADER_DIRECTORY = "@CMAKE_CURRENT_LIST_DIR@/shaders/";
+
+#endif  // _COMMON_H_
