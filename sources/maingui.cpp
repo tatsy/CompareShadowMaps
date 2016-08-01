@@ -1,10 +1,12 @@
 #include "maingui.h"
 #include "openglviewer.h"
 
+#include <QtCore/qdebug.h>
 #include <QtCore/qelapsedtimer.h>
 #include <QtWidgets/qboxlayout.h>
 
 #include "valueslider.h"
+#include "radiobuttongroup.h"
 
 class MainGui::Ui : public QWidget {
 public:
@@ -13,6 +15,14 @@ public:
         layout = new QVBoxLayout(this);
         layout->setAlignment(Qt::AlignTop);
         setLayout(layout);
+        
+        radioGroup = new RadioButtonGroup("Algorithm", this);
+        radioGroup->addRadioButton("SM", true);
+        radioGroup->addRadioButton("PCF", false);
+        radioGroup->addRadioButton("VSM", false);
+        radioGroup->addRadioButton("CSM", false);
+        radioGroup->addRadioButton("ESM", false);
+        layout->addWidget(radioGroup);
         
         esmCoeffSlider = new ValueSlider("C", 1.0, 120.0, this);
         esmCoeffSlider->setValue(80.0);
@@ -28,6 +38,7 @@ public:
     }
     
     virtual ~Ui() {
+        delete radioGroup;
         delete esmCoeffSlider;
         delete ksizeSlider;
         delete darknessSlider;
@@ -35,6 +46,7 @@ public:
     }
     
     QVBoxLayout* layout;
+    RadioButtonGroup* radioGroup;
     ValueSlider* esmCoeffSlider;
     ValueSlider* ksizeSlider;
     ValueSlider* darknessSlider;
@@ -57,6 +69,7 @@ MainGui::MainGui(QWidget *parent)
     mainLayout->addWidget(ui, 0, 1);
         
     connect(view, SIGNAL(frameSwapped()), this, SLOT(OnFrameSwapped()));
+    connect(ui->radioGroup, SIGNAL(selectionChanged(int)), this, SLOT(OnAlgorithmChanged(int)));
     connect(ui->esmCoeffSlider, SIGNAL(valueChanged(double)), this, SLOT(OnParamChanged(double)));
     connect(ui->ksizeSlider, SIGNAL(valueChanged(double)), this, SLOT(OnParamChanged(double)));
     connect(ui->darknessSlider, SIGNAL(valueChanged(double)), this, SLOT(OnParamChanged(double)));
@@ -85,6 +98,10 @@ void MainGui::OnFrameSwapped() {
         timer.restart();
     }
     lastTime = timer.elapsed();
+}
+
+void MainGui::OnAlgorithmChanged(int type) {
+    view->setAlgorithm((SMType)type);
 }
 
 void MainGui::OnParamChanged(double) {

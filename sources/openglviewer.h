@@ -16,6 +16,14 @@
 
 #include "arcballcontroller.h"
 
+enum class SMType : int {
+    Normal      = 0x00,
+    PCF         = 0x01,
+    Variance    = 0x02,
+    Convolution = 0x03,
+    Exponential = 0x04
+};
+
 struct ESMParams {
     ESMParams(float coeff, float ksize, float dark)
         : esmCoeff(coeff)
@@ -37,6 +45,10 @@ public:
         params = newParams;
     }
     
+    void setAlgorithm(SMType type) {
+        smType = type;
+    }
+    
 protected:
     void initializeGL() override;
     void paintGL() override;
@@ -51,6 +63,11 @@ private slots:
     void OnAnimate();
     
 private:
+    // Private methods
+    void shadowMaps();
+    void exponentialShadowMaps();
+
+    // Private parameters
     std::unique_ptr<QOpenGLVertexArrayObject> vao = nullptr;
     std::unique_ptr<QOpenGLBuffer> vBuffer = nullptr;
     std::unique_ptr<QOpenGLBuffer> iBuffer = nullptr;
@@ -73,6 +90,7 @@ private:
     
     std::unique_ptr<QTimer> animTimer = nullptr;
     
+    SMType smType = SMType::Normal;
     ESMParams params;
 };
 

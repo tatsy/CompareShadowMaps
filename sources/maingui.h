@@ -19,6 +19,7 @@ public:
     
 private slots:
     void OnFrameSwapped();
+    void OnAlgorithmChanged(int);
     void OnParamChanged(double);
     
 private:

@@ -8,7 +8,8 @@ configure_file(${CMAKE_CURRENT_LIST_DIR}/common.h.in
 
 set(SOURCES main.cpp maingui.h maingui.cpp
             openglviewer.h openglviewer.cpp
-            arcballcontroller.h glutils.h valueslider.h
+            arcballcontroller.h glutils.h
+            valueslider.h radiobuttongroup.h
             common.h tiny_obj_loader.h)
 
 file(GLOB SHADERS "shaders/*")

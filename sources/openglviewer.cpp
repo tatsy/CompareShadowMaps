@@ -21,10 +21,6 @@ static constexpr int NORMAL_LOC = 1;
 
 static const int SHADOWMAP_SIZE = 2048;
 
-static float kernelSize = 11.0f;
-static float esmCoeff = 80.0f;
-static float darkness = 10.0f;
-
 static const QVector3D LIGHT_POS = QVector3D(-10.0f, 15.0f, 6.0f);
 
 static const float floorPos[] = {
@@ -79,7 +75,7 @@ OpenGLViewer::~OpenGLViewer() {
 
 void OpenGLViewer::initializeGL() {
     glEnable(GL_DEPTH_TEST);
-    glClearColor(1.0f, 0.0f, 0.0f, 1.0f);
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     
     // Load OBJ file.
     std::vector<tinyobj::shape_t> shapes;
@@ -197,7 +193,104 @@ void OpenGLViewer::initializeGL() {
 
 void OpenGLViewer::paintGL() {
     if (!vao) return;
+  
+    switch (smType) {
+    case SMType::Normal:
+    case SMType::PCF:
+    case SMType::Variance:
+        shadowMaps();
+        break;
+        
+    case SMType::Convolution:
+        break;
+        
+    case SMType::Exponential:
+        exponentialShadowMaps();
+        break;
+        
+    default:
+        fprintf(stderr, "[ERROR] Unknown SM algorithm: %d\n", (int)smType);
+        std::exit(1);
+    }
+}
 
+void OpenGLViewer::shadowMaps() {
+// Shadow mapping
+    int vp[4];
+    glGetIntegerv(GL_VIEWPORT, vp);
+    glViewport(0, 0, SHADOWMAP_SIZE, SHADOWMAP_SIZE);
+
+    QMatrix4x4 depthMvp;
+    {
+        smShader->bind();
+        depthFbo->bind();
+        
+        QMatrix4x4 mvMat, pMat;
+        mvMat.lookAt(LIGHT_POS, QVector3D(0.0f, 0.0f, 0.0f), QVector3D(0.0f, 1.0f, 0.0f));
+        pMat.perspective(45.0f, 1.0f, 0.1f, 100.0f);
+        depthMvp = pMat * mvMat;
+
+        smShader->setUniformValue("u_smType", (int)smType);
+        smShader->setUniformValue("u_mvpMat", depthMvp);
+        
+        glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+        
+        vao->bind();
+        glDrawElements(GL_TRIANGLES, iBuffer->size() / sizeof(unsigned int), GL_UNSIGNED_INT, 0);
+        vao->release();
+        
+        floorVao->bind();
+        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+        floorVao->release();
+        
+        smShader->release();
+        depthFbo->release();
+    }
+    glViewport(vp[0], vp[1], vp[2], vp[3]);
+    
+    // Render path
+    {
+        shader->bind();
+        
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        
+        QMatrix4x4 pMat, mvMat;
+        pMat.perspective(45.0f, (float)width() / (float)height(), 0.1f, 100.0f);
+        mvMat = arcball->modelViewMat();
+        
+        QVector3D cameraPos = (mvMat.inverted() * QVector4D(0.0f, 0.0f, 0.0f, 1.0f)).toVector3DAffine();
+        
+        QMatrix4x4 mvpMat = pMat * mvMat;
+        shader->setUniformValue("u_mvpMat", mvpMat);
+        shader->setUniformValue("u_lightPos", LIGHT_POS);
+        shader->setUniformValue("u_cameraPos", cameraPos);
+        shader->setUniformValue("u_depthMvp", depthMvp);
+        shader->setUniformValue("u_kernelSize", params.kernelSize / SHADOWMAP_SIZE);
+        shader->setUniformValue("u_smType", (int)smType);
+        
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, depthFbo->texture());
+        shader->setUniformValue("u_depthMap", 0);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glGenerateMipmap(GL_TEXTURE_2D);
+        
+        vao->bind();
+        glDrawElements(GL_TRIANGLES, iBuffer->size() / sizeof(unsigned int), GL_UNSIGNED_INT, 0);
+        vao->release();
+        
+        floorVao->bind();
+        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+        floorVao->release();
+        
+        shader->release();
+        vao->release();
+    }
+}
+
+void OpenGLViewer::exponentialShadowMaps() {
     // Shadow mapping
     int vp[4];
     glGetIntegerv(GL_VIEWPORT, vp);
@@ -215,6 +308,7 @@ void OpenGLViewer::paintGL() {
 
         smShader->setUniformValue("u_esmCoeff", params.esmCoeff);
         smShader->setUniformValue("u_mvpMat", depthMvp);
+        smShader->setUniformValue("u_smType", (int)smType);
         
         glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -314,6 +408,7 @@ void OpenGLViewer::paintGL() {
         shader->setUniformValue("u_depthMvp", depthMvp);
         shader->setUniformValue("u_esmCoeff", params.esmCoeff);
         shader->setUniformValue("u_darkness", params.darkness);
+        shader->setUniformValue("u_smType", (int)smType);
         
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, depthFbo->texture());
